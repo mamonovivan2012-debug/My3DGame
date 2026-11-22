@@ -1,3 +1,4 @@
+
 #include "raylib.h"
 #include "raymath.h"
 #include "rlgl.h"
@@ -9,39 +10,106 @@ struct Car {
     float speed = 0.0f;
 };
 
-void DrawBuilding(Vector3 p, Vector3 s, Color wall) {
-    DrawCubeV(p, s, wall);
-    DrawCubeV(
-        {p.x, p.y + s.y/2 + 0.18f, p.z},
+// PROCEDURAL TEXTURES
+
+Texture2D CreateNoiseTexture(Color base, int size, int strength) {
+    Image image = GenImageColor(size, size, base);
+
+    for (int y = 0; y < size; y++) {
+        for (int x = 0; x < size; x++) {
+            unsigned int n =
+                (unsigned int)x * 374761393u +
+                (unsigned int)y * 668265263u;
+
+            n = (n ^ (n >> 13)) * 1274126177u;
+            n ^= n >> 16;
+
+            int noise =
+                (int)(n % (unsigned int)(strength * 2 + 1))
+                - strength;
+
+            Color pixel = {
+                (unsigned char)Clamp((float)base.r + noise, 0, 255),
+                (unsigned char)Clamp((float)base.g + noise, 0, 255),
+                (unsigned char)Clamp((float)base.b + noise, 0, 255),
+                255
+            };
+
+            ImageDrawPixel(&image, x, y, pixel);
+        }
+    }
+
+    Texture2D texture = LoadTextureFromImage(image);
+    SetTextureFilter(texture, TEXTURE_FILTER_BILINEAR);
+    UnloadImage(image);
+
+    return texture;
+}
+
+Model MakeTexturedCube(Texture2D texture) {
+    Model model = LoadModelFromMesh(
+        GenMeshCube(1.0f, 1.0f, 1.0f)
+    );
+
+    model.materials[0].maps[MATERIAL_MAP_ALBEDO].texture = texture;
+
+    return model;
+}
+
+void DrawTexturedBox(
+    Model &model,
+    Vector3 position,
+    Vector3 size,
+    Color tint
+) {
+    DrawModel(model, position, size, tint);
+}
+
+// BUILDINGS
+
+void DrawBuilding(
+    Vector3 p,
+    Vector3 s,
+    Color wall,
+    Model &wallModel,
+    Model &roofModel
+) {
+    DrawTexturedBox(wallModel, p, s, wall);
+
+    DrawTexturedBox(
+        roofModel,
+        {p.x, p.y + s.y / 2 + 0.18f, p.z},
         {s.x + 0.35f, 0.35f, s.z + 0.35f},
         DARKGRAY
     );
 
-    Color glass = {105, 165, 190, 255};
+    Color glass = {75, 145, 175, 255};
 
     int floors = (int)(s.y / 3.0f);
     int columns = (int)(s.x / 2.5f);
 
     for (int f = 0; f < floors; f++) {
-        float y = p.y - s.y/2 + 1.7f + f*3.0f;
+        float y = p.y - s.y / 2 + 1.7f + f * 3.0f;
 
         for (int c = 0; c < columns; c++) {
-            float x = p.x - s.x/2 + 1.25f + c*2.5f;
+            float x = p.x - s.x / 2 + 1.25f + c * 2.5f;
 
             DrawCubeV(
-                {x, y, p.z - s.z/2 - 0.03f},
+                {x, y, p.z - s.z / 2 - 0.03f},
                 {1.15f, 1.05f, 0.08f},
                 glass
             );
 
             DrawCubeV(
-                {x, y, p.z + s.z/2 + 0.03f},
+                {x, y, p.z + s.z / 2 + 0.03f},
                 {1.15f, 1.05f, 0.08f},
                 glass
             );
         }
     }
 }
+
+// CAR
 
 void DrawCar(Vector3 p, float heading) {
     rlPushMatrix();
@@ -64,7 +132,7 @@ void DrawCar(Vector3 p, float heading) {
     for (int side = -1; side <= 1; side += 2) {
         for (int front = -1; front <= 1; front += 2) {
             DrawCylinder(
-                {side*1.08f, 0.48f, front*1.35f},
+                {side * 1.08f, 0.48f, front * 1.35f},
                 0.43f, 0.43f, 0.28f, 12, BLACK
             );
         }
@@ -84,6 +152,8 @@ void DrawCar(Vector3 p, float heading) {
 
     rlPopMatrix();
 }
+
+// PLAYER
 
 void DrawPlayer(Vector3 p, float heading, float walkTime) {
     rlPushMatrix();
@@ -120,6 +190,8 @@ void DrawPlayer(Vector3 p, float heading, float walkTime) {
     rlPopMatrix();
 }
 
+// STREET LIGHTS
+
 void DrawStreetLight(float x, float z) {
     DrawCylinder(
         {x, 2.7f, z},
@@ -138,13 +210,38 @@ void DrawStreetLight(float x, float z) {
     );
 }
 
+// MAIN
+
 int main() {
     const int WIDTH = 1280;
     const int HEIGHT = 720;
 
+    SetConfigFlags(FLAG_MSAA_4X_HINT);
+
     InitWindow(WIDTH, HEIGHT, "Mini GTA 3D");
+    SetWindowMinSize(960, 540);
+
     SetTargetFPS(60);
     DisableCursor();
+
+    // TEXTURES
+
+    Texture2D asphaltTexture =
+        CreateNoiseTexture({55, 58, 61, 255}, 128, 13);
+
+    Texture2D concreteTexture =
+        CreateNoiseTexture({142, 140, 132, 255}, 128, 17);
+
+    Texture2D grassTexture =
+        CreateNoiseTexture({73, 103, 65, 255}, 128, 24);
+
+    Texture2D wallTexture =
+        CreateNoiseTexture({174, 166, 151, 255}, 128, 19);
+
+    Model asphaltModel = MakeTexturedCube(asphaltTexture);
+    Model concreteModel = MakeTexturedCube(concreteTexture);
+    Model grassModel = MakeTexturedCube(grassTexture);
+    Model wallCubeModel = MakeTexturedCube(wallTexture);
 
     Vector3 player = {0, 0, 10};
 
@@ -165,9 +262,6 @@ int main() {
     camera.fovy = 65;
     camera.projection = CAMERA_PERSPECTIVE;
 
-    Color road = {48, 51, 56, 255};
-    Color sidewalk = {145, 145, 140, 255};
-
     Color walls[] = {
         {174, 166, 151, 255},
         {125, 137, 145, 255},
@@ -182,7 +276,6 @@ int main() {
         Vector2 mouse = GetMouseDelta();
 
         cameraYaw -= mouse.x * 0.0025f;
-
         cameraYaw = Wrap(cameraYaw, -PI, PI);
 
         Vector3 forward = {
@@ -192,6 +285,8 @@ int main() {
         Vector3 right = {
             cosf(cameraYaw), 0, -sinf(cameraYaw)
         };
+
+        // PLAYER MOVEMENT
 
         if (!inCar) {
             Vector3 move = {0, 0, 0};
@@ -217,7 +312,6 @@ int main() {
                 player.z += move.z * 5.5f * dt;
 
                 playerHeading = atan2f(move.x, move.z);
-
                 walkTime += dt;
             }
 
@@ -233,6 +327,9 @@ int main() {
                 cameraYaw = car.heading + PI;
             }
         }
+
+        // CAR MOVEMENT
+
         else {
             if (IsKeyDown(KEY_W))
                 car.speed += 13.0f * dt;
@@ -241,7 +338,6 @@ int main() {
                 car.speed -= 16.0f * dt;
 
             car.speed *= powf(0.985f, dt * 60.0f);
-
             car.speed = Clamp(car.speed, -12, 27);
 
             float steer = 0;
@@ -253,7 +349,7 @@ int main() {
                 steer -= 1;
 
             car.heading += steer * dt *
-                (1.8f * (0.25f + fabsf(car.speed)/20.0f)) *
+                (1.8f * (0.25f + fabsf(car.speed) / 20.0f)) *
                 (car.speed >= 0 ? 1 : -1);
 
             car.position.x +=
@@ -278,8 +374,9 @@ int main() {
             }
         }
 
-        Vector3 focus = inCar ? car.position : player;
+        // CAMERA
 
+        Vector3 focus = inCar ? car.position : player;
         float followYaw = inCar ? car.heading : cameraYaw;
 
         Vector3 behind = {
@@ -303,18 +400,27 @@ int main() {
             {0, inCar ? 1.0f : 1.25f, 0}
         );
 
+        // DRAWING
+
         BeginDrawing();
 
-        ClearBackground(
-            Color{135, 185, 220, 255}
+        ClearBackground(Color{95, 145, 190, 255});
+
+        DrawRectangleGradientV(
+            0, 0, WIDTH, HEIGHT,
+            Color{90, 155, 205, 255},
+            Color{205, 220, 225, 255}
         );
 
         BeginMode3D(camera);
 
-        DrawPlane(
-            {0, -0.12f, 0},
-            {180, 180},
-            Color{92, 125, 88, 255}
+        // GROUND
+
+        DrawTexturedBox(
+            grassModel,
+            {0, -0.18f, 0},
+            {180, 0.20f, 180},
+            WHITE
         );
 
         // CITY ROADS
@@ -322,28 +428,32 @@ int main() {
         for (int k = -1; k <= 1; k++) {
             float offset = k * 36.0f;
 
-            DrawCubeV(
+            DrawTexturedBox(
+                asphaltModel,
                 {offset, 0, 0},
                 {13, 0.12f, 180},
-                road
+                WHITE
             );
 
-            DrawCubeV(
+            DrawTexturedBox(
+                asphaltModel,
                 {0, 0, offset},
                 {180, 0.12f, 13},
-                road
+                WHITE
             );
 
-            DrawCubeV(
+            DrawTexturedBox(
+                concreteModel,
                 {offset - 7.2f, 0.04f, 0},
                 {1.2f, 0.2f, 180},
-                sidewalk
+                WHITE
             );
 
-            DrawCubeV(
+            DrawTexturedBox(
+                concreteModel,
                 {offset + 7.2f, 0.04f, 0},
                 {1.2f, 0.2f, 180},
-                sidewalk
+                WHITE
             );
         }
 
@@ -386,9 +496,8 @@ int main() {
 
                 for (int sx = -1; sx <= 1; sx++) {
                     for (int sz = -1; sz <= 1; sz++) {
-
-                        float bx = x*36.0f + sx*8.5f;
-                        float bz = z*36.0f + sz*8.5f;
+                        float bx = x * 36.0f + sx * 8.5f;
+                        float bz = z * 36.0f + sz * 8.5f;
 
                         float height =
                             9.0f + (index % 5) * 3.0f;
@@ -397,9 +506,11 @@ int main() {
                             6.8f + (index % 3) * 0.7f;
 
                         DrawBuilding(
-                            {bx, height/2, bz},
+                            {bx, height / 2, bz},
                             {width, height, 7},
-                            walls[index % 5]
+                            walls[index % 5],
+                            wallCubeModel,
+                            concreteModel
                         );
 
                         index++;
@@ -481,6 +592,18 @@ int main() {
 
         EndDrawing();
     }
+
+    // CLEANUP
+
+    UnloadModel(asphaltModel);
+    UnloadModel(concreteModel);
+    UnloadModel(grassModel);
+    UnloadModel(wallCubeModel);
+
+    UnloadTexture(asphaltTexture);
+    UnloadTexture(concreteTexture);
+    UnloadTexture(grassTexture);
+    UnloadTexture(wallTexture);
 
     EnableCursor();
     CloseWindow();
