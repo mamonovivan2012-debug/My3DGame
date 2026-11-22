@@ -58,7 +58,7 @@ void DrawCar(Vector3 p, float heading) {
     DrawCubeV(
         {0, 1.35f, -0.25f},
         {1.75f, 0.72f, 2.1f},
-        (Color){65, 90, 105, 255}
+        Color{65, 90, 105, 255}
     );
 
     for (int side = -1; side <= 1; side += 2) {
@@ -306,7 +306,7 @@ int main() {
         BeginDrawing();
 
         ClearBackground(
-            (Color){135, 185, 220, 255}
+            Color{135, 185, 220, 255}
         );
 
         BeginMode3D(camera);
@@ -314,7 +314,7 @@ int main() {
         DrawPlane(
             {0, -0.12f, 0},
             {180, 180},
-            (Color){92, 125, 88, 255}
+            Color{92, 125, 88, 255}
         );
 
         // CITY ROADS
