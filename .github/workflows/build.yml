@@ -1,0 +1,35 @@
+name: Build Windows Game
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup CMake
+        uses: lukka/get-cmake@latest
+
+      - name: Configure
+        run: cmake -S . -B build -G "Visual Studio 17 2022"
+
+      - name: Build
+        run: cmake --build build --config Release
+
+      - name: Find executable
+        shell: pwsh
+        run: |
+          Get-ChildItem -Path build -Filter My3DGame.exe -Recurse
+
+      - name: Upload EXE
+        uses: actions/upload-artifact@v4
+        with:
+          name: My3DGame-Windows
+          path: build/Release/My3DGame.exe
